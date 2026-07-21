@@ -25,7 +25,7 @@ jobs:
 
       - name: Run test suite
         run: |
-          set -o pipefail
+          set -o pipefail // make sures if any command fails the entire pipeline fails
           npm test -- --verbose 2>&1 | tee test-output.log
 
       - name: Upload test output
