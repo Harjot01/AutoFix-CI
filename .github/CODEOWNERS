@@ -1,0 +1,16 @@
+# CODEOWNERS
+# Each line: <path pattern>   <owner(s)>
+# GitHub auto-requests these people as reviewers when matching files change.
+
+# Default owner for anything not matched below
+*                          @Harjot01
+
+# Core app logic
+/src/app.js                @Harjot01
+/src/utils.js               @Harjot01
+
+# Tests
+/tests/                     @Harjot01
+
+# CI / automation pipeline
+/.github/workflows/         @Harjot01
