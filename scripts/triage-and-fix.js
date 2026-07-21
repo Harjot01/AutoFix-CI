@@ -112,7 +112,7 @@ async function main() {
   const commitAuthor = run("git log -1 --format='%an'");
   const commitAuthorEmail = run("git log -1 --format='%ae'");
 
-  console.log(`Commit ${commitSha} by ${commitAuthor} <${commitAuthorEmail}>`);
+  console.log(`Commit ${commitSha} by ${commitAuthor} `);
 
   // For the demo scope we focus on the first changed source file
   // (skip test files and config, since those aren't what we want the assistant to "fix")
@@ -209,7 +209,7 @@ Do not include any explanation, markdown code fences, or commentary — just the
   run(`git commit -m "autofix: proposed fix for failing build on ${targetFile}"`);
 
   // Push using the token for authentication
-   run(`git push -u origin ${branchSlug}`);
+  run(`git push -u origin ${branchSlug}`);
 
   // 7. Re-run tests to check confidence
   const testResult = runSafe('npm test');
