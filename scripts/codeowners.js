@@ -12,7 +12,7 @@ const path = require('path');
  */
 function loadCodeowners(repoRoot) {
   const candidates = [
-    path.join(repoRoot, '.github', 'CODEOWNERS'),
+    path.join(repoRoot, '.github', 'CODEOWNERS'), // we are using this one
     path.join(repoRoot, 'CODEOWNERS'),
     path.join(repoRoot, 'docs', 'CODEOWNERS'),
   ];
