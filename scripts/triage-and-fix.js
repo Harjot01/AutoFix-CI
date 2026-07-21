@@ -209,9 +209,7 @@ Do not include any explanation, markdown code fences, or commentary — just the
   run(`git commit -m "autofix: proposed fix for failing build on ${targetFile}"`);
 
   // Push using the token for auth
-  // const remoteUrl = `https://x-access-token:${process.env.GH_TOKEN}@github.com/${OWNER}/${REPO}.git`;
- // run(`git push ${remoteUrl} ${branchSlug}`);
- run(`git push -u origin ${branchSlug}`);
+   run(`git push -u origin ${branchSlug}`);
 
   // 7. Re-run tests to check confidence
   const testResult = runSafe('npm test');
