@@ -112,7 +112,7 @@ async function main() {
   const commitAuthor = run("git log -1 --format='%an'");
   const commitAuthorEmail = run("git log -1 --format='%ae'");
 
-  console.log(`Commit ${commitSha} by ${commitAuthor} `);
+  console.log(`Commit ${commitSha} by ${commitAuthor}`);
 
   // For the demo scope we focus on the first changed source file
   // (skip test files and config, since those aren't what we want the assistant to "fix")
