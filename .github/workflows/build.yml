@@ -67,6 +67,7 @@ jobs:
       - name: Run triage and autofix script
         run: node scripts/triage-and-fix.js
         env:
+          ICA_API_KEY: ${{ secrets.ICA_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

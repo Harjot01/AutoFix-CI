@@ -1,4 +1,4 @@
 {
   "_comment": "Map GitHub usernames to Slack member IDs so Slack messages can @-mention properly. Find a Slack member ID via their profile -> 'Copy member ID'. If a username isn't listed here, the bot will just mention their GitHub handle as plain text instead.",
-  "Harjot01": "U0BJSJJP3FB"
+  "Harjot01": "U09HLD6862D"
 }

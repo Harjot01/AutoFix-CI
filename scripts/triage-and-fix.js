@@ -6,13 +6,15 @@
  *   2. Diffs the last commit to find what changed
  *   3. Finds the commit author (git log) and the CODEOWNERS owner for the file
  *   4. Looks up the GitHub PR associated with the failing commit (if any)
- *   5. Asks Claude for a corrected version of the file
+ *   5. Asks the ICA (IBM Consulting Advantage) assistant for a corrected version of the file
  *   6. Applies the fix on a new branch, re-runs tests to confirm it works
  *   7. Opens a PR with the fix
  *   8. Posts a summary to Slack, tagging both the author and the code owner
  *
  * Required environment variables:
- *   ANTHROPIC_API_KEY   - Anthropic API key
+ *   ICA_API_KEY         - IBM Consulting Advantage API key
+ *   ICA_API_BASE_URL    - Base URL for the ICA API (e.g. https://api.your-ica-instance.com)
+ *   ICA_MODEL           - (optional) ICA assistant/model id to use for this workflow
  *   GH_TOKEN            - GitHub token/PAT with repo write access
  *   SLACK_WEBHOOK_URL   - Slack incoming webhook URL
  *   GITHUB_REPOSITORY   - "owner/repo" (auto-set by GitHub Actions)
@@ -23,12 +25,16 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const { Octokit } = require('@octokit/rest');
-const Anthropic = require('@anthropic-ai/sdk');
 const { findOwners } = require('./codeowners');
 
 const REPO_ROOT = process.cwd();
 const [OWNER, REPO] = (process.env.GITHUB_REPOSITORY || '').split('/');
 const RUN_ID = process.env.GITHUB_RUN_ID || Date.now().toString();
+
+// ICA API configuration
+const ICA_API_BASE_URL = process.env.ICA_API_BASE_URL || 'https://api.nextgen-beta.ica.ibm.com/ica/v1';
+const ICA_API_KEY = process.env.ICA_API_KEY;
+const ICA_MODEL = process.env.ICA_MODEL || 'claude-sonnet-4-5'; // raw model id from GET /chat-models (bump to claude-opus-4-7 for tougher fixes)
 
 function run(cmd) {
   return execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
@@ -42,8 +48,46 @@ function runSafe(cmd) {
   }
 }
 
+/**
+ * Calls the ICA raw chat-model completion endpoint and returns the
+ * model's reply text (OpenAI-compatible `choices[0].message.content`).
+ * Using the raw model (vs. a preset assistant) avoids any competing
+ * persona/system-prompt instructions overriding our own "return only
+ * the file contents" instruction.
+ */
+async function callIca(promptText) {
+  const res = await fetch(`${ICA_API_BASE_URL}/chat-models/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${ICA_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: ICA_MODEL,
+      messages: [{ role: 'user', content: promptText }],
+      stream: false,
+    }),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`ICA API request failed (${res.status}): ${errBody}`);
+  }
+
+  const data = await res.json();
+  const choice = data.choices && data.choices[0];
+  if (!choice || !choice.message || typeof choice.message.content !== 'string') {
+    throw new Error('ICA API response did not contain expected choices[0].message.content');
+  }
+  return choice.message.content;
+}
+
 async function main() {
   console.log('--- AutoFix triage starting ---');
+
+  if (!ICA_API_KEY) {
+    throw new Error('ICA_API_KEY environment variable is not set.');
+  }
 
   // 1. Read the failing test log
   const logPath = path.join(REPO_ROOT, 'test-output.log');
@@ -71,7 +115,7 @@ async function main() {
   console.log(`Commit ${commitSha} by ${commitAuthor} <${commitAuthorEmail}>`);
 
   // For the demo scope we focus on the first changed source file
-  // (skip test files and config, since those aren't what we want Claude to "fix")
+  // (skip test files and config, since those aren't what we want the assistant to "fix")
   const targetFile = changedFiles.find(
     (f) => f.startsWith('src/') && !f.includes('.test.')
   ) || changedFiles[0];
@@ -115,9 +159,7 @@ async function main() {
   const ticketMatch = ticketSource.match(/[A-Z]+-\d+/);
   if (ticketMatch) ticketId = ticketMatch[0];
 
-  // 5. Ask Claude for a fix
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
+  // 5. Ask the ICA assistant for a fix
   const prompt = `You are helping fix a broken build. A CI test suite failed after this commit.
 
 FILE: ${targetFile}
@@ -140,24 +182,17 @@ ${testLog.slice(0, 4000)}
 Return ONLY the complete corrected contents of ${targetFile}, with the bug fixed.
 Do not include any explanation, markdown code fences, or commentary — just the raw file contents.`;
 
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const icaReply = await callIca(prompt);
 
-  let fixedContent = message.content
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
-    .join('\n');
+  let fixedContent = icaReply;
 
-  // Strip markdown fences if Claude added them despite instructions
+  // Strip markdown fences if the assistant added them despite instructions
   fixedContent = fixedContent
     .replace(/^```[a-zA-Z]*\n/, '')
     .replace(/```\s*$/, '')
     .trim() + '\n';
 
-  console.log('--- Claude proposed fix (first 300 chars) ---');
+  console.log('--- ICA proposed fix (first 300 chars) ---');
   console.log(fixedContent.slice(0, 300));
 
   // 6. Apply the fix on a new branch
